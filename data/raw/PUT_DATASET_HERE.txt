@@ -1,0 +1,17 @@
+Copy the Kaggle folder named `cleaned_dataset` into this directory.
+
+Expected layout:
+
+data/
+└── raw/
+    └── cleaned_dataset/
+        ├── metadata.csv
+        ├── data/
+        │   ├── 00001.csv
+        │   ├── 00002.csv
+        │   └── ...
+        └── extra_infos/
+
+Dataset:
+Patrick Fleith - NASA Battery Dataset
+https://www.kaggle.com/datasets/patrickfleith/nasa-battery-dataset

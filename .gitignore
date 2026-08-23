@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+models/*.joblib
+results/figures/*.png
+results/metrics/*.csv
+data/processed/*.csv
+data/raw/cleaned_dataset/
