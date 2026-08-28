@@ -1,29 +1,32 @@
-# Intelligent Battery Management System
-## NASA Battery SOH and RUL Estimation
+# Intelligent Battery Management System — Complete Dissertation Project
 
-This starter project implements the first complete experimental pipeline for a final-year/dissertation project on:
+This is the **complete standalone project**. You do **not** need the earlier ZIPs.
 
-**Development of an Intelligent Battery Management System Featuring Machine Learning-Based SOH and RUL Estimation**
+Project topic:
 
-The project expects the cleaned CSV version of Patrick Fleith's NASA Battery Dataset.
+> **Development of an Intelligent Battery Management System Featuring Machine Learning-Based SOH and RUL Estimation**
 
-Dataset page:
-https://www.kaggle.com/datasets/patrickfleith/nasa-battery-dataset
+The code uses the cleaned CSV version of the NASA Battery Dataset and implements the full progression from preprocessing and baseline models to ablation studies, engineered features, physical EOL/RUL labelling, LSTM comparison, feature importance, deployment models, and a Streamlit BMS demo.
 
-The Kaggle version contains one CSV per charge, discharge, or impedance experiment. The project initially uses **discharge experiments** because they contain the battery capacity information needed to derive State of Health (SOH) and Remaining Useful Life (RUL).
+## 1. Dataset placement
 
----
-
-## 1. Project structure
+Download the NASA Battery Dataset from Kaggle and copy the entire `cleaned_dataset` folder into:
 
 ```text
-intelligent-battery-management/
+data/raw/cleaned_dataset/
+```
+
+Expected structure:
+
+```text
+intelligent-battery-management-complete/
 ├── data/
 │   ├── raw/
-│   │   └── cleaned_dataset/       <- YOU COPY THIS HERE
+│   │   └── cleaned_dataset/
 │   │       ├── metadata.csv
 │   │       ├── data/
 │   │       │   ├── 00001.csv
+│   │       │   ├── 00002.csv
 │   │       │   └── ...
 │   │       └── extra_infos/
 │   └── processed/
@@ -32,388 +35,311 @@ intelligent-battery-management/
 │   ├── figures/
 │   └── metrics/
 ├── src/
-│   ├── config.py
-│   ├── utils.py
-│   ├── check_setup.py
-│   ├── inspect_dataset.py
-│   ├── preprocess.py
-│   ├── plot_eda.py
-│   ├── model_common.py
-│   ├── train_soh.py
-│   └── train_rul.py
+├── dashboard.py
 ├── main.py
-├── requirements.txt
-└── README.md
+├── run_all.py
+└── requirements.txt
 ```
 
----
+The main experiments use B0005, B0006, B0007 and B0018.
 
-## 2. Setup on macOS / VS Code
+## 2. Environment setup
 
-Open the project folder in VS Code and open a terminal.
-
-### Create a virtual environment
+On macOS / VS Code:
 
 ```bash
 python3 -m venv .venv
-```
-
-### Activate it
-
-```bash
 source .venv/bin/activate
-```
-
-### Upgrade pip
-
-```bash
 python -m pip install --upgrade pip
-```
-
-### Install packages
-
-```bash
 pip install -r requirements.txt
 ```
 
----
-
-## 3. Add the dataset
-
-Download and unzip the Kaggle dataset.
-
-Copy the whole folder:
-
-```text
-cleaned_dataset
-```
-
-into:
-
-```text
-data/raw/
-```
-
-The important paths should therefore be:
-
-```text
-data/raw/cleaned_dataset/metadata.csv
-data/raw/cleaned_dataset/data/00001.csv
-data/raw/cleaned_dataset/data/00002.csv
-...
-```
-
-Do not rename the experiment CSV files.
-
----
-
-## 4. Validate the dataset
-
-Run:
+## 3. Check the dataset
 
 ```bash
 python src/check_setup.py
 ```
 
-The known cleaned metadata commonly contains fields such as:
-
-```text
-type
-start_time
-ambient_temperature
-battery_id
-test_id
-uid
-filename
-Capacity
-Re
-Rct
-```
-
-The script only requires the essential columns needed for the initial pipeline.
-
----
-
-## 5. Inspect the dataset
-
-Run:
+Optional inspection:
 
 ```bash
 python src/inspect_dataset.py
 ```
 
-This prints:
+## 4. Fast end-to-end test
 
-- metadata shape and columns
-- battery identifiers
-- counts of charge/discharge/impedance experiments
-- one sample discharge CSV
-- the sensor columns inside that experiment
-
-Typical discharge signals include:
-
-- Voltage_measured
-- Current_measured
-- Temperature_measured
-- Current_load
-- Voltage_load
-- Time
-
----
-
-## 6. Preprocess the NASA data
-
-Run:
+Run the complete workflow with only 15 LSTM epochs per fold:
 
 ```bash
-python src/preprocess.py
+python run_all.py --quick
 ```
 
-The preprocessing script:
-
-1. reads `metadata.csv`
-2. keeps discharge experiments
-3. initially keeps B0005, B0006, B0007 and B0018
-4. opens the corresponding experiment CSV
-5. converts each discharge experiment into one cycle-level row
-6. extracts voltage/current/temperature/time features
-7. calculates SOH
-8. defines an EOL cycle
-9. creates RUL labels
-10. saves the result to:
-
-```text
-data/processed/battery_cycles.csv
-```
-
-Important derived variables:
-
-### SOH
-
-```text
-SOH = current discharge capacity / initial discharge capacity
-```
-
-The CSV contains both:
-
-- `soh` as a 0-1 ratio
-- `soh_percent` as 0-100%
-
-### RUL
-
-The default EOL threshold is configured as:
-
-```text
-SOH <= 0.70
-```
-
-RUL is:
-
-```text
-RUL = EOL cycle - current cycle
-```
-
-If a battery does not cross the configured threshold in the available data, the script transparently uses its final observed discharge cycle as a fallback and records this in `eol_source`.
-
----
-
-## 7. Create exploratory graphs
-
-Run:
+If that finishes successfully, run the full workflow:
 
 ```bash
-python src/plot_eda.py
+python run_all.py
+```
+
+## 5. What `run_all.py` executes
+
+### Baseline stage
+
+```text
+check_setup.py
+preprocess.py
+plot_eda.py
+train_soh.py
+train_rul.py
+cross_validate.py
+cross_validate_no_cycle.py
+```
+
+This creates the first two experiments:
+
+- Experiment A — basic features + cycle number
+- Experiment B — basic features without cycle number
+
+SOH is defined using one fixed rated capacity:
+
+```text
+SOH = measured capacity / 2.0 Ah
+```
+
+The early baseline RUL uses remaining recorded cycles. This is retained only as a baseline/ablation study.
+
+### Engineered-feature stage
+
+```text
+preprocess_engineered.py
+cross_validate_engineered_no_cycle.py
+cross_validate_engineered_with_cycle.py
+```
+
+Engineered health indicators include:
+
+- discharge energy
+- voltage curve area
+- temperature curve area
+- voltage slope
+- temperature slope
+- time to 4.0 V
+- time to 3.8 V
+- time to 3.6 V
+- voltage at 25%, 50%, and 75% elapsed discharge time
+- temperature at 50% elapsed discharge time
+- relative discharge duration
+- relative discharge energy
+
+This produces:
+
+- Experiment C — engineered features without cycle number
+- Experiment D — engineered features + cycle number
+
+The two relative features use the **first observed discharge cycle only** as their reference, avoiding future-cycle look-ahead.
+
+### Final physical RUL stage
+
+```text
+prepare_final_dataset.py
 ```
 
 This creates:
 
 ```text
-results/figures/capacity_vs_cycle.png
-results/figures/soh_vs_cycle.png
-results/figures/temperature_vs_cycle.png
+data/processed/battery_cycles_final.csv
+data/processed/physical_eol_summary.csv
 ```
 
-These are useful for the dissertation's dataset analysis and results chapters.
+The final RUL target uses a physical end-of-life threshold:
 
----
-
-## 8. Train SOH models
-
-Run:
-
-```bash
-python src/train_soh.py
+```text
+rated capacity = 2.0 Ah
+EOL capacity = 1.4 Ah
 ```
 
-The first baseline experiment compares:
+EOL is the first point at which **three consecutive discharge cycles** are at or below 1.4 Ah. If a battery never produces a sustained crossing, the final observed cycle is retained as a clearly documented fallback.
+
+### Final classical evaluation
+
+```text
+evaluate_final_classical.py
+```
+
+Performs Leave-One-Battery-Out evaluation for:
 
 - Random Forest
 - XGBoost
 
-The default battery-wise split is:
+with:
+
+- engineered features without cycle number
+- engineered features with cycle number
+
+for:
+
+- SOH
+- physical RUL
+
+It reports both `all_cycles` results and `sequence_aligned` results. Sequence-aligned evaluation begins at cycle 10 so the classical models can later be compared fairly with an LSTM using a 10-cycle sequence.
+
+### Feature importance
 
 ```text
-Train:
-B0005
-B0006
-B0007
-
-Test:
-B0018
+feature_importance.py
 ```
 
-This is deliberately battery-wise rather than a random row split. It tests whether the model generalises to an unseen battery.
+Uses held-out-battery **permutation importance** rather than relying only on tree training importance.
 
-Metrics produced:
+Outputs include ranked CSV files and top-15 plots for SOH and RUL.
 
-- MAE
-- RMSE
-- R²
+### LSTM stage
 
-Outputs are written to `models/`, `results/metrics/`, and `results/figures/`.
+```text
+train_lstm.py
+```
 
----
+Default configuration:
 
-## 9. Train RUL models
+```text
+sequence length = 10 cycles
+epochs = 60
+hidden size = 64
+layers = 2
+```
 
-Run:
+It evaluates:
+
+- LSTM + engineered features without cycle number
+- LSTM + engineered features with cycle number
+
+for both SOH and physical RUL under Leave-One-Battery-Out validation.
+
+Quick direct test:
 
 ```bash
-python src/train_rul.py
+python src/train_lstm.py --epochs 15
 ```
 
-This compares Random Forest and XGBoost for cycle-level RUL prediction using the same unseen-battery experiment.
+### Final RF vs XGBoost vs LSTM comparison
 
----
+```text
+final_comparison.py
+```
 
-## 10. Run everything
+Uses the sequence-aligned classical results and LSTM results to produce a fair final comparison.
 
-After the dataset has been copied into the right folder, run:
+### Deployment models
+
+```text
+train_deployment_models.py
+```
+
+Selects the strongest final classical model for each target from the all-cycle cross-validation results and trains deployment bundles:
+
+```text
+models/deployment_soh.joblib
+models/deployment_rul.joblib
+```
+
+The LSTM remains part of the academic model comparison. Classical models are used for the dashboard because they can estimate health from one processed discharge cycle.
+
+## 6. Run the BMS dashboard
+
+After the full pipeline completes:
 
 ```bash
-python main.py
+streamlit run dashboard.py
 ```
 
-That executes:
+The dashboard provides:
+
+- battery selection
+- discharge-cycle selection
+- measured capacity
+- predicted SOH
+- predicted physical RUL
+- battery health status
+- SOH trajectory
+- RUL trajectory
+- selected model information
+
+This is a dissertation demonstration, not a certified real-world safety system.
+
+## 7. Important output files
+
+### Baseline and ablation
 
 ```text
-dataset check
-     ↓
-preprocessing
-     ↓
-EDA
-     ↓
-SOH models
-     ↓
-RUL models
+results/metrics/leave_one_battery_out_summary.csv
+results/metrics/leave_one_battery_out_no_cycle_summary.csv
+results/metrics/engineered_no_cycle_summary.csv
+results/metrics/engineered_with_cycle_summary.csv
+results/metrics/all_experiments_comparison.csv
 ```
 
----
-
-# Important academic design decision
-
-The first model features intentionally exclude:
-
-- capacity_ah
-- soh
-- soh_percent
-- rul_cycles
-
-from model inputs.
-
-Those values are targets or directly target-derived variables. Feeding them into the model would cause target leakage and could produce unrealistically high results.
-
-The initial predictors instead use sensor-derived information such as voltage, current, temperature, discharge duration, ambient temperature, and cycle number.
-
----
-
-# Next development stages
-
-Once this baseline runs correctly, develop the dissertation in this order:
-
-### Stage 1 — Verify the baseline
-Confirm that `battery_cycles.csv`, graphs, and model metrics are produced without errors.
-
-### Stage 2 — Feature engineering
-Add stronger battery health indicators, for example:
-
-- voltage curve area
-- time to voltage threshold
-- temperature rise rate
-- voltage decline slope
-- discharge energy
-- rolling degradation features
-
-### Stage 3 — Improve validation
-Run leave-one-battery-out experiments rather than testing only B0018.
-
-Example:
+### Final methodology
 
 ```text
-Experiment 1: test B0005
-Experiment 2: test B0006
-Experiment 3: test B0007
-Experiment 4: test B0018
+data/processed/physical_eol_summary.csv
+results/metrics/final_classical_summary.csv
+results/metrics/permutation_importance_summary.csv
+results/metrics/lstm_summary.csv
+results/metrics/final_model_comparison.csv
+results/metrics/best_models.csv
+results/metrics/deployment_model_selection.csv
 ```
 
-Report mean and standard deviation across experiments.
-
-### Stage 4 — Sequence model
-Add an LSTM model using previous battery cycles as a time sequence.
-
-This gives a useful comparison:
+### Dissertation figures
 
 ```text
-Random Forest
-vs
-XGBoost
-vs
-LSTM
+results/figures/capacity_vs_cycle.png
+results/figures/soh_vs_cycle.png
+results/figures/temperature_vs_cycle.png
+results/figures/importance_*.png
+results/figures/final_r2_comparison_*.png
+results/figures/final_mae_comparison_*.png
 ```
 
-### Stage 5 — Hyperparameter tuning
-Use training data only for model selection. Do not tune directly against the held-out battery.
+## 8. Manual execution order
 
-### Stage 6 — Final evaluation
-Prepare:
-
-- Actual vs predicted SOH
-- Actual vs predicted RUL
-- MAE comparison
-- RMSE comparison
-- R² comparison
-- model training time
-- feature importance
-- limitations and generalisation discussion
-
-### Stage 7 — Intelligent BMS demo
-After the prediction pipeline is scientifically sound, add a simple dashboard that takes battery measurements and displays:
-
-- estimated SOH
-- estimated RUL
-- health status
-- warning when SOH approaches EOL
-- degradation graph
-
-Do the dashboard last. The dissertation's core contribution should first be the data pipeline, modelling methodology, and evaluation.
-
----
-
-## Recommended first commands
-
-After copying the dataset:
+If you prefer to run every step individually:
 
 ```bash
-source .venv/bin/activate
 python src/check_setup.py
 python src/inspect_dataset.py
+
 python src/preprocess.py
+python src/plot_eda.py
+python src/train_soh.py
+python src/train_rul.py
+python src/cross_validate.py
+python src/cross_validate_no_cycle.py
+
+python src/preprocess_engineered.py
+python src/cross_validate_engineered_no_cycle.py
+python src/cross_validate_engineered_with_cycle.py
+
+python src/prepare_final_dataset.py
+python src/evaluate_final_classical.py
+python src/feature_importance.py
+python src/train_lstm.py
+python src/final_comparison.py
+python src/train_deployment_models.py
+
+streamlit run dashboard.py
 ```
 
-If those three commands work, inspect:
+## 9. Recommended dissertation interpretation
+
+Keep the baseline/ablation stage in the report because it demonstrates the research progression:
 
 ```text
-data/processed/battery_cycles.csv
+basic + cycle
+basic - cycle
+engineered - cycle
+engineered + cycle
 ```
 
-before training any model.
+Then treat the physical 1.4 Ah EOL experiment, feature-importance study, and RF/XGBoost/LSTM comparison as the final methodological stage.
+
+Do not select a model purely because one fold gives the largest R². Report mean and standard deviation across held-out batteries and discuss B0018 separately if it remains substantially harder than the other cells.
